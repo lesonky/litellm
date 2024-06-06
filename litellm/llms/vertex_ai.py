@@ -169,20 +169,35 @@ class VertexAIConfig:
                 optional_params["presence_penalty"] = value
             if param == "tools" and isinstance(value, list):
                 from vertexai.preview import generative_models
-
+                from vertexai.generative_models import Tool
                 gtool_func_declarations = []
+                gtool_grounding=[]
                 for tool in value:
-                    gtool_func_declaration = generative_models.FunctionDeclaration(
-                        name=tool["function"]["name"],
-                        description=tool["function"].get("description", ""),
-                        parameters=tool["function"].get("parameters", {}),
-                    )
-                    gtool_func_declarations.append(gtool_func_declaration)
-                optional_params["tools"] = [
-                    generative_models.Tool(
-                        function_declarations=gtool_func_declarations
-                    )
-                ]
+                    name=tool["function"]["name"]
+                    if name == "googleSearchRetrieval":
+                        gtool_func_declaration = Tool.from_google_search_retrieval(generative_models.grounding.GoogleSearchRetrieval(disable_attribution=False))
+                        gtool_grounding.append(gtool_func_declaration)
+                    elif name == "vertexAiSearch":
+                        data_store_path = tool["function"]["datastore"]
+                        gtool_func_declaration = Tool.from_retrieval(retrieval=generative_models.grounding.Retrieval(source=generative_models.grounding.VertexAISearch(datastore=data_store_path),disable_attribution=False))
+                        print(gtool_func_declaration)
+                        gtool_grounding.append(gtool_func_declaration)
+                    else:
+                        gtool_func_declaration = generative_models.FunctionDeclaration(
+                            name=name,
+                            description=tool["function"].get("description", ""),
+                            parameters=tool["function"].get("parameters", {}),
+                        )
+                        gtool_func_declarations.append(gtool_func_declaration)
+                if gtool_func_declarations:
+                    optional_params["tools"] = [
+                        generative_models.Tool(
+                            function_declarations=gtool_func_declarations
+                        ),
+                        *gtool_grounding
+                    ]
+                else:
+                    optional_params["tools"] = gtool_grounding
             if param == "tool_choice" and (
                 isinstance(value, str) or isinstance(value, dict)
             ):
